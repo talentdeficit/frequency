@@ -87,7 +87,7 @@ run_timers(_Timers, _Opts) -> [].
 
 report_results(_Results, _Opts) -> ok.
 
-    
+
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -108,7 +108,7 @@ timer_representation_test_() ->
         )},
         {"anon timer with args", ?_assertEqual(
             create_timers({G, [foo]}, []),
-            [#timer{function={G, [foo]}}]            
+            [#timer{function={G, [foo]}}]
         )},
         {"mf timer", ?_assertEqual(
             create_timers({?MODULE, faketimer}, []),
@@ -150,6 +150,6 @@ timer_representation_test_() ->
             ]
         )}
     ].
-    
 
--endif.    
+
+-endif.
