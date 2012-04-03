@@ -33,24 +33,31 @@
 time(Timers) -> time(Timers, []).
 
 time(Timers, Opts) ->
-    try
-        Timers = create_timers(Timers, Opts),
-        Results = run_timers(Timers, Opts),
-        report_results(Results, Opts)
-    catch error:Error -> {error, Error}
-    end.
+        Specs = create_timers(Timers, Opts),
+        Results = run_timers(Specs, Opts),
+        report_results(Results, Opts).
 
 
 -record(timer, {
-    function = null
+    name,
+    function
 }).
 
 
 create_timers(Timers, Opts) -> create_timers(Timers, #timer{}, Opts, []).
 
 create_timers([], _, _, Acc) -> lists:reverse(Acc);
-create_timers([Timer|Rest], BaseTimer, Opts, Acc) when is_function(Timer, 0) ->
-    create_timers(Rest, BaseTimer, Opts, [BaseTimer#timer{function=Timer}] ++ Acc).
+create_timers([Timer|Rest], Spec, Opts, Acc) ->
+    MoreTimers = create_timer(Timer, Spec, Opts),
+    create_timers(Rest, Spec, Opts, MoreTimers ++ Acc);
+create_timers(Timer, Spec, Opts, _Acc) ->
+    create_timer(Timer, Spec, Opts).
+
+
+create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
+    create_timers(Timers, Spec#timer{name=Name}, Opts, []);
+create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
+    [Spec#timer{function=Timer}].
 
 
 run_timers(_Timers, _Opts) -> [].
@@ -67,8 +74,12 @@ timer_representation_test_() ->
     F = fun() -> ok end,
     [
         {"anon fun", ?_assertEqual(
-            create_timers([F], []),
+            create_timers(F, []),
             [#timer{function=F}]
+        )},
+        {"named test", ?_assertEqual(
+            create_timers({"name", F}, []),
+            [#timer{name="name", function=F}]
         )}
     ].
     
