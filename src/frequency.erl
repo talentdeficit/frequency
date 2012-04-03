@@ -65,9 +65,9 @@ create_timers(Timer, Spec, Opts, _Acc) ->
 create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
 %% controls
-create_timer({average, N, Timers}, Spec, Opts) when N > 0 ->
+create_timer({average, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
     create_timers(Timers, Spec#timer{average=N}, Opts, []);
-create_timer({concurrent, N, Timers}, Spec, Opts) when N > 0 ->
+create_timer({concurrent, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
     create_timers(Timers, Spec#timer{concurrent=N}, Opts, []);
 %% line / simple test pair
 create_timer({Line, Timer}, Spec, Opts) when is_integer(Line), Line > 0 ->
