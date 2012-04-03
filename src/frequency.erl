@@ -70,16 +70,20 @@ report_results(_Results, _Opts) -> ok.
 -include_lib("eunit/include/eunit.hrl").
 
 timer_representation_test_() ->
-    %% anon fun for anon fun test
+    %% anon fun for timers
     F = fun() -> ok end,
     [
-        {"anon fun", ?_assertEqual(
+        {"anon timer", ?_assertEqual(
             create_timers(F, []),
             [#timer{function=F}]
         )},
-        {"named test", ?_assertEqual(
+        {"named timer", ?_assertEqual(
             create_timers({"name", F}, []),
             [#timer{name="name", function=F}]
+        )},
+        {"two timers", ?_assertEqual(
+            create_timers([F, F], []),
+            [#timer{function=F}, #timer{function=F}]
         )}
     ].
     
