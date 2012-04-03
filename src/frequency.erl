@@ -41,7 +41,8 @@ time(Timers, Opts) ->
 -record(timer, {
     name,
     function,
-    average = 1
+    average = 1,
+    concurrent = 1
 }).
 
 
@@ -59,6 +60,12 @@ create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
 create_timer({average, N, Timers}, Spec, Opts) when N > 0 ->
     create_timers(Timers, Spec#timer{average=N}, Opts, []);
+create_timer({Name, average, N, Timers}, Spec, Opts) when is_list(Name), N > 0 ->
+    create_timers(Timers, Spec#timer{name=Name, average=N}, Opts, []);
+create_timer({concurrent, N, Timers}, Spec, Opts) when N > 0 ->
+    create_timers(Timers, Spec#timer{concurrent=N}, Opts, []);
+create_timer({Name, concurrent, N, Timers}, Spec, Opts) when is_list(Name), N > 0 ->
+    create_timers(Timers, Spec#timer{name=Name, concurrent=N}, Opts, []);
 create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
     [Spec#timer{function=Timer}].
 
@@ -84,6 +91,10 @@ timer_representation_test_() ->
             create_timers({"name", F}, []),
             [#timer{name="name", function=F}]
         )},
+        {"nested named timer", ?_assertEqual(
+            create_timers({"oldname", {"newname", F}}, []),
+            [#timer{name="newname", function=F}]
+        )},
         {"two anon timers", ?_assertEqual(
             create_timers([F, F], []),
             [#timer{function=F}, #timer{function=F}]
@@ -91,6 +102,18 @@ timer_representation_test_() ->
         {"anon average test", ?_assertEqual(
             create_timers({average, 5, F}, []),
             [#timer{function=F, average=5}]
+        )},
+        {"named average test", ?_assertEqual(
+            create_timers({"average", average, 5, F}, []),
+            [#timer{name="average", function=F, average=5}]
+        )},
+        {"anon concurrent test", ?_assertEqual(
+            create_timers({concurrent, 3, F}, []),
+            [#timer{function=F, concurrent=3}]
+        )},
+        {"named average test", ?_assertEqual(
+            create_timers({"concurrent", concurrent, 3, F}, []),
+            [#timer{name="concurrent", function=F, concurrent=3}]
         )}
     ].
     
