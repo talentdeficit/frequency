@@ -1,0 +1,12 @@
+{application, frequency,
+[
+    {description, "a performance testing library"},
+    {vsn, "rillyrillyalpha"},
+    {modules, [frequency]},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []}
+]}.
