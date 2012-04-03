@@ -75,8 +75,12 @@ create_timer({Line, Timer}, Spec, Opts) when is_integer(Line), Line > 0 ->
 %% simple test representations
 create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
     [Spec#timer{function=Timer}];
+create_timer({Timer, Args}, Spec, _Opts) when is_function(Timer, 1), is_list(Args) ->
+    [Spec#timer{function={Timer, Args}}];
 create_timer({Mod, Fun}, Spec, _Opts) ->
-    [Spec#timer{function={Mod, Fun}}].
+    [Spec#timer{function={Mod, Fun, []}}];
+create_timer({Mod, Fun, Args}, Spec, _Opts) when is_list(Args) ->
+    [Spec#timer{function={Mod, Fun, Args}}].
 
 
 run_timers(_Timers, _Opts) -> [].
@@ -96,14 +100,23 @@ faketimer() -> ok.
 timer_representation_test_() ->
     %% anon fun for timers
     F = fun() -> ok end,
+    G = fun(_) -> ok end,
     [
         {"anon timer", ?_assertEqual(
             create_timers(F, []),
             [#timer{function=F}]
         )},
+        {"anon timer with args", ?_assertEqual(
+            create_timers({G, [foo]}, []),
+            [#timer{function={G, [foo]}}]            
+        )},
         {"mf timer", ?_assertEqual(
             create_timers({?MODULE, faketimer}, []),
             [#timer{function={?MODULE, faketimer}}]
+        )},
+        {"mf timer with args", ?_assertEqual(
+            create_timers({?MODULE, faketimer, [foo]}, []),
+            [#timer{function={?MODULE, faketimer, [foo]}}]
         )},
         {"line annotated timer", ?_assertEqual(
             create_timers({1, F}, []),
