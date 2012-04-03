@@ -114,6 +114,13 @@ timer_representation_test_() ->
         {"named average test", ?_assertEqual(
             create_timers({"concurrent", concurrent, 3, F}, []),
             [#timer{name="concurrent", function=F, concurrent=3}]
+        )},
+        {"average and concurrent test", ?_assertEqual(
+            create_timers({concurrent, 3, [{average, 5, F}, {average, 1, F}]}, []),
+            [
+                #timer{function=F, average=5, concurrent=3},
+                #timer{function=F, average=1, concurrent=3}
+            ]
         )}
     ].
     
