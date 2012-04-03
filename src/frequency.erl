@@ -40,7 +40,8 @@ time(Timers, Opts) ->
 
 -record(timer, {
     name,
-    function
+    function,
+    average = 1
 }).
 
 
@@ -56,6 +57,8 @@ create_timers(Timer, Spec, Opts, _Acc) ->
 
 create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
+create_timer({average, N, Timers}, Spec, Opts) when N > 0 ->
+    create_timers(Timers, Spec#timer{average=N}, Opts, []);
 create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
     [Spec#timer{function=Timer}].
 
@@ -81,9 +84,13 @@ timer_representation_test_() ->
             create_timers({"name", F}, []),
             [#timer{name="name", function=F}]
         )},
-        {"two timers", ?_assertEqual(
+        {"two anon timers", ?_assertEqual(
             create_timers([F, F], []),
             [#timer{function=F}, #timer{function=F}]
+        )},
+        {"anon average test", ?_assertEqual(
+            create_timers({average, 5, F}, []),
+            [#timer{function=F, average=5}]
         )}
     ].
     
