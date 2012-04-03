@@ -17,6 +17,7 @@ frequency is released under the terms of the [MIT][MIT] license
 * [quickstart](#quickstart)
 * [timers](#timers)
   - [simple timer representations](#simpletimers)
+  - [control](#control)
 * [acknowledgments](#thanks)
 
 
@@ -40,6 +41,15 @@ the following are all simple timer objects:
 * a function and a list of args that can be passed to `apply/2`: `{fun(_) -> ok end, [foo]}`, `{fun function/1, [foo]}`, `{fun function/2, [foo, bar]}`
 * a tuple representing a module, a function, and (optionally) a list of arguments that can be passed to `apply/3`: `{module, function}` (equivalent to `{module, function, []}`) or `{module, function, [foo, bar]}`
 
+
+<a name="control">control representations</a>
+
+any timer can be wrapped in a control tuple to control how timers are run
+
+the following control representations are available:
+
+* `{average, N, Timer}` will run the timer N times sequentially and return the average result
+* `{concurrent, N, Timer}` will run the timer in N seperate processes, concurrently, and return the average result
 
 
 ### <a name="thanks">acknowledgments</a> ###
