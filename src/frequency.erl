@@ -46,6 +46,7 @@ time(Timers, Opts) ->
 -record(timer, {
     name,
     function,
+    line,
     average = 1,
     concurrent = 1
 }).
@@ -63,10 +64,15 @@ create_timers(Timer, Spec, Opts, _Acc) ->
 
 create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
+%% controls
 create_timer({average, N, Timers}, Spec, Opts) when N > 0 ->
     create_timers(Timers, Spec#timer{average=N}, Opts, []);
 create_timer({concurrent, N, Timers}, Spec, Opts) when N > 0 ->
     create_timers(Timers, Spec#timer{concurrent=N}, Opts, []);
+%% line / simple test pair
+create_timer({Line, Timer}, Spec, Opts) when is_integer(Line), Line > 0 ->
+    create_timer(Timer, Spec#timer{line=Line}, Opts);
+%% simple test representations
 create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
     [Spec#timer{function=Timer}];
 create_timer({Mod, Fun}, Spec, _Opts) ->
@@ -98,6 +104,10 @@ timer_representation_test_() ->
         {"mf timer", ?_assertEqual(
             create_timers({?MODULE, faketimer}, []),
             [#timer{function={?MODULE, faketimer}}]
+        )},
+        {"line annotated timer", ?_assertEqual(
+            create_timers({1, F}, []),
+            [#timer{function=F,line=1}]
         )},
         {"named timer", ?_assertEqual(
             create_timers({"name", F}, []),
