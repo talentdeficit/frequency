@@ -24,6 +24,11 @@
 
 -export([time/1, time/2]).
 
+%% fake function for eunit tests
+-ifdef(TEST).
+-export([faketimer/0]).
+-endif.
+
 
 -type freq_opts() :: verbose.
 
@@ -63,7 +68,9 @@ create_timer({average, N, Timers}, Spec, Opts) when N > 0 ->
 create_timer({concurrent, N, Timers}, Spec, Opts) when N > 0 ->
     create_timers(Timers, Spec#timer{concurrent=N}, Opts, []);
 create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
-    [Spec#timer{function=Timer}].
+    [Spec#timer{function=Timer}];
+create_timer({Mod, Fun}, Spec, _Opts) ->
+    [Spec#timer{function={Mod, Fun}}].
 
 
 run_timers(_Timers, _Opts) -> [].
@@ -75,6 +82,11 @@ report_results(_Results, _Opts) -> ok.
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+
+%% function for eunit tests
+faketimer() -> ok.
+
+
 timer_representation_test_() ->
     %% anon fun for timers
     F = fun() -> ok end,
@@ -82,6 +94,10 @@ timer_representation_test_() ->
         {"anon timer", ?_assertEqual(
             create_timers(F, []),
             [#timer{function=F}]
+        )},
+        {"mf timer", ?_assertEqual(
+            create_timers({?MODULE, faketimer}, []),
+            [#timer{function={?MODULE, faketimer}}]
         )},
         {"named timer", ?_assertEqual(
             create_timers({"name", F}, []),
