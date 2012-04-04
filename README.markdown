@@ -18,6 +18,7 @@ frequency is released under the terms of the [MIT][MIT] license
 * [timers](#timers)
   - [simple timer representations](#simpletimers)
   - [control](#control)
+* [configuration](#config)
 * [acknowledgments](#thanks)
 
 
@@ -31,7 +32,9 @@ to run a timer set: `frequency:time(TimerSet)`
 
 
 
+
 ### <a name="timers">timers</a> ###
+
 
 <a name="simpletimers">simple timer representations</a>
 
@@ -42,14 +45,30 @@ the following are all simple timer objects:
 * a tuple representing a module, a function, and (optionally) a list of arguments that can be passed to `apply/3`: `{module, function}` (equivalent to `{module, function, []}`) or `{module, function, [foo, bar]}`
 
 
+
+
 <a name="control">control representations</a>
 
 any timer can be wrapped in a control tuple to control how timers are run
 
 the following control representations are available:
 
-* `{average, N, Timer}` will run the timer N times sequentially and return the average result
-* `{concurrent, N, Timer}` will run the timer in N seperate processes, concurrently, and return the average result
+* `{average, TimerSet}` will return the average of the runtimes of the timer set
+* `{sum, TimerSet}` will return the sum of the runtimes of the timer set. this is the default
+* `{concurrent, TimerSet}` will run the timer set concurrently in a number of processes at once (see [configuration](#config))
+* `{sequential, TimerSet}` will run the timer set sequentially. this is the default
+
+
+
+
+### <a name="config">configuration</a> ###
+
+the following options may be passed to the `frequency:time/2` function to control how timers may be run and reported
+
+* `verbose` will report results for every timer in a timer set, not just the overall results
+* `{max_concurrent, N}` will allow `N` timers to be run concurrently
+
+
 
 
 ### <a name="thanks">acknowledgments</a> ###

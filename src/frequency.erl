@@ -46,9 +46,7 @@ time(Timers, Opts) ->
 -record(timer, {
     name,
     function,
-    line,
-    average = 1,
-    concurrent = 1
+    line
 }).
 
 
@@ -65,10 +63,15 @@ create_timers(Timer, Spec, Opts, _Acc) ->
 create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
 %% controls
-create_timer({average, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
-    create_timers(Timers, Spec#timer{average=N}, Opts, []);
-create_timer({concurrent, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
-    create_timers(Timers, Spec#timer{concurrent=N}, Opts, []);
+create_timer({average, Timers}, Spec, Opts) ->
+    [{average, create_timers(Timers, Spec, Opts, [])}];
+%% the default, included for completesness
+create_timer({sum, Timers}, Spec, Opts) ->
+    create_timers(Timers, Spec, Opts, []);
+create_timer({concurrent, Timers}, Spec, Opts) ->
+    [{concurrent, create_timers(Timers, Spec, Opts, [])}];
+create_timer({sequential, Timers}, Spec, Opts) ->
+    create_timers(Timers, Spec, Opts, []);
 %% line / simple test pair
 create_timer({Line, Timer}, Spec, Opts) when is_integer(Line), Line > 0 ->
     create_timer(Timer, Spec#timer{line=Line}, Opts);
@@ -135,19 +138,30 @@ timer_representation_test_() ->
             [#timer{function=F}, #timer{function=F}]
         )},
         {"average test", ?_assertEqual(
-            create_timers({average, 5, {"average", F}}, []),
-            [#timer{name="average", function=F, average=5}]
+            create_timers({average, [{"one", F}, {"two", F}]}, []),
+            [{average, [#timer{name="one", function=F}, #timer{name="two", function=F}]}]
+        )},
+        {"sum test", ?_assertEqual(
+            create_timers({sum, [{"one", F}, {"two", F}]}, []),
+            [#timer{name="one", function=F}, #timer{name="two", function=F}]
         )},
         {"concurrent test", ?_assertEqual(
-            create_timers({concurrent, 3, {"concurrent", F}}, []),
-            [#timer{name="concurrent", function=F, concurrent=3}]
+            create_timers({concurrent, [{"one", F}, {"two", F}]}, []),
+            [{concurrent, [#timer{name="one", function=F}, #timer{name="two", function=F}]}]
         )},
-        {"average and concurrent test", ?_assertEqual(
-            create_timers({concurrent, 3, [{average, 5, F}, {average, 1, F}]}, []),
-            [
-                #timer{function=F, average=5, concurrent=3},
-                #timer{function=F, average=1, concurrent=3}
-            ]
+        {"sequential test", ?_assertEqual(
+            create_timers({sequential, [{"one", F}, {"two", F}]}, []),
+            [#timer{name="one", function=F}, #timer{name="two", function=F}]
+        )},
+        {"concurrent average test", ?_assertEqual(
+            create_timers({concurrent, [
+                {average, [{"one", F}, {"two", F}]},
+                {average, [{"three", F}, {"four", F}]}
+            ]}, []),
+            [{concurrent, [
+                {average, [#timer{name="one", function=F}, #timer{name="two", function=F}]},
+                {average, [#timer{name="three", function=F}, #timer{name="four", function=F}]}
+            ]}]
         )}
     ].
 
