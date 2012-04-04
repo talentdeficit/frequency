@@ -53,6 +53,7 @@ any timer can be wrapped in a control tuple to control how timers are run
 
 the following control representations are available:
 
+* `{repeat, N, TimerSet}` will run the timer set N times
 * `{average, TimerSet}` will return the average of the runtimes of the timer set
 * `{sum, TimerSet}` will return the sum of the runtimes of the timer set. this is the default
 * `{concurrent, TimerSet}` will run the timer set concurrently in a number of processes at once (see [configuration](#config))

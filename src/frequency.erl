@@ -63,6 +63,8 @@ create_timers(Timer, Spec, Opts, _Acc) ->
 create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
     create_timers(Timers, Spec#timer{name=Name}, Opts, []);
 %% controls
+create_timer({repeat, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
+    create_timers(lists:flatten(lists:duplicate(N, Timers)), Spec, Opts, []);
 create_timer({average, Timers}, Spec, Opts) ->
     [{average, create_timers(Timers, Spec, Opts, [])}];
 %% the default, included for completesness
@@ -70,6 +72,7 @@ create_timer({sum, Timers}, Spec, Opts) ->
     create_timers(Timers, Spec, Opts, []);
 create_timer({concurrent, Timers}, Spec, Opts) ->
     [{concurrent, create_timers(Timers, Spec, Opts, [])}];
+%% also default
 create_timer({sequential, Timers}, Spec, Opts) ->
     create_timers(Timers, Spec, Opts, []);
 %% line / simple test pair
@@ -137,6 +140,14 @@ timer_representation_test_() ->
             create_timers([F, F], []),
             [#timer{function=F}, #timer{function=F}]
         )},
+        {"repeat test", ?_assertEqual(
+            create_timers({repeat, 3, {"repeated", F}}, []),
+            [
+                #timer{name="repeated", function=F},
+                #timer{name="repeated", function=F},
+                #timer{name="repeated", function=F}
+            ]
+        )},
         {"average test", ?_assertEqual(
             create_timers({average, [{"one", F}, {"two", F}]}, []),
             [{average, [#timer{name="one", function=F}, #timer{name="two", function=F}]}]
@@ -152,6 +163,14 @@ timer_representation_test_() ->
         {"sequential test", ?_assertEqual(
             create_timers({sequential, [{"one", F}, {"two", F}]}, []),
             [#timer{name="one", function=F}, #timer{name="two", function=F}]
+        )},
+        {"average repeat test", ?_assertEqual(
+            create_timers({average, {repeat, 3, {"repeated", F}}}, []),
+            [{average, [
+                #timer{name="repeated", function=F},
+                #timer{name="repeated", function=F},
+                #timer{name="repeated", function=F}
+            ]}]
         )},
         {"concurrent average test", ?_assertEqual(
             create_timers({concurrent, [
