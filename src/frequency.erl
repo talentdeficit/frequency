@@ -22,7 +22,7 @@
 
 -module(frequency).
 
--export([time/1, time/2]).
+-export([profile/1, profile/2, run_timer/1]).
 
 %% fake function for eunit tests
 -ifdef(TEST).
@@ -30,24 +30,32 @@
 -endif.
 
 
--type freq_opts() :: verbose.
+-record(timer, {
+    name,
+    function,
+    line,
+    time,
+    error
+}).
 
--spec time(Timers::term()) -> ok | {error, term()}.
--spec time(Timers::term(), Opts::[freq_opts()]) -> ok | {error, term()}.
+-type control() :: sum | average | sequential | concurrent.
+-type timer() :: #timer{} | {control(), [timer()]}.
 
-time(Timers) -> time(Timers, []).
+-type opts() :: verbose | {max_concurrent, integer()}.
 
-time(Timers, Opts) ->
+
+-spec profile(Timers::term()) -> ok | {error, term()}.
+-spec profile(Timers::term(), Opts::[opts()]) -> ok | {error, term()}.
+
+profile(Timers) -> profile(Timers, []).
+
+profile(Timers, Opts) ->
         Specs = create_timers(Timers, Opts),
         Results = run_timers(Specs, Opts),
         report_results(Results, Opts).
 
 
--record(timer, {
-    name,
-    function,
-    line
-}).
+run_timer(#timer{function = F}) when is_function(F, 0) -> {Time, _} = timer:tc(F), Time.
 
 
 create_timers(Timers, Opts) -> create_timers(Timers, #timer{}, Opts, []).
@@ -89,9 +97,9 @@ create_timer({Mod, Fun, Args}, Spec, _Opts) when is_list(Args) ->
     [Spec#timer{function={Mod, Fun, Args}}].
 
 
-run_timers(_Timers, _Opts) -> [].
+run_timers(Timers, Opts) -> freq_control:time(Timers, Opts).
 
-report_results(_Results, _Opts) -> ok.
+report_results(Results, _Opts) -> Results.
 
 
 
