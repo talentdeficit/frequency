@@ -113,44 +113,44 @@ report_results(Results, _Opts) -> Results.
 faketimer() -> ok.
 
 
-profiler_representation_test_() ->
+create_representation_test_() ->
     %% anon fun for profilers
     F = fun() -> ok end,
     G = fun(_) -> ok end,
     [
-        {"anon profiler", ?_assertEqual(
+        {"anon test", ?_assertEqual(
             create_tests(F, []),
             [#test{function=F}]
         )},
-        {"anon profiler with args", ?_assertEqual(
+        {"anon test with args", ?_assertEqual(
             create_tests({G, [foo]}, []),
             [#test{function={G, [foo]}}]
         )},
-        {"mf profiler", ?_assertEqual(
+        {"mf test", ?_assertEqual(
             create_tests({?MODULE, faketimer}, []),
             [#test{function={?MODULE, faketimer}}]
         )},
-        {"mf profiler with args", ?_assertEqual(
+        {"mf test with args", ?_assertEqual(
             create_tests({?MODULE, faketimer, [foo]}, []),
             [#test{function={?MODULE, faketimer, [foo]}}]
         )},
-        {"line annotated profiler", ?_assertEqual(
+        {"line annotated test", ?_assertEqual(
             create_tests({1, F}, []),
             [#test{function=F,line=1}]
         )},
-        {"named profiler", ?_assertEqual(
+        {"named tests", ?_assertEqual(
             create_tests({"name", F}, []),
             [#test{name="name", function=F}]
         )},
-        {"nested named profiler", ?_assertEqual(
+        {"nested named tests", ?_assertEqual(
             create_tests({"oldname", {"newname", F}}, []),
             [#test{name="newname", function=F}]
         )},
-        {"two anon profilers", ?_assertEqual(
+        {"two anon tests", ?_assertEqual(
             create_tests([F, F], []),
             [#test{function=F}, #test{function=F}]
         )},
-        {"repeat test", ?_assertEqual(
+        {"repeated test", ?_assertEqual(
             create_tests({repeat, 3, {"repeated", F}}, []),
             [
                 #test{name="repeated", function=F},
@@ -158,11 +158,11 @@ profiler_representation_test_() ->
                 #test{name="repeated", function=F}
             ]
         )},
-        {"average test", ?_assertEqual(
+        {"averaged test", ?_assertEqual(
             create_tests({average, [{"one", F}, {"two", F}]}, []),
             [{average, [#test{name="one", function=F}, #test{name="two", function=F}]}]
         )},
-        {"average average test", ?_assertEqual(
+        {"averaged averaged test", ?_assertEqual(
             create_tests({average, [
                 {average, [{"one", F}, {"two", F}]},
                 {average, [{"one", F}, {"two", F}]}
@@ -184,7 +184,7 @@ profiler_representation_test_() ->
             create_tests({sequential, [{"one", F}, {"two", F}]}, []),
             [{sequential, [#test{name="one", function=F}, #test{name="two", function=F}]}]
         )},
-        {"average repeat test", ?_assertEqual(
+        {"averaged repeat test", ?_assertEqual(
             create_tests({average, {repeat, 3, {"repeated", F}}}, []),
             [{average, [
                 #test{name="repeated", function=F},
@@ -192,7 +192,7 @@ profiler_representation_test_() ->
                 #test{name="repeated", function=F}
             ]}]
         )},
-        {"concurrent average test", ?_assertEqual(
+        {"concurrent averaged test", ?_assertEqual(
             create_tests({concurrent, [
                 {average, [{"one", F}, {"two", F}]},
                 {average, [{"three", F}, {"four", F}]}
@@ -202,7 +202,7 @@ profiler_representation_test_() ->
                 {average, [#test{name="three", function=F}, #test{name="four", function=F}]}
             ]}]
         )},
-        {"average concurrent test", ?_assertEqual(
+        {"averaged concurrent test", ?_assertEqual(
             create_tests({average, [
                 {concurrent, [{"one", F}, {"two", F}]},
                 {concurrent, [{"three", F}, {"four", F}]}
