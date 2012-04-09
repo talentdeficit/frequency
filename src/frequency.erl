@@ -30,7 +30,7 @@
 -endif.
 
 
--record(timer, {
+-record(test, {
     name,
     function,
     line,
@@ -39,65 +39,67 @@
 }).
 
 -type control() :: sum | average | sequential | concurrent.
--type timer() :: #timer{} | {control(), [timer()]}.
+-type test() :: #test{} | {control(), [test()]}.
 
 -type opts() :: verbose | {max_concurrent, integer()}.
 
 
--spec profile(Timers::term()) -> ok | {error, term()}.
--spec profile(Timers::term(), Opts::[opts()]) -> ok | {error, term()}.
+-spec profile(Fs::term()) -> ok | {error, term()}.
+-spec profile(Fs::term(), Opts::[opts()]) -> ok | {error, term()}.
 
-profile(Timers) -> profile(Timers, []).
+profile(Fs) -> profile(Fs, []).
 
-profile(Timers, Opts) ->
-        Specs = create_timers(Timers, Opts),
-        Results = run_timers(Specs, Opts),
+profile(Fs, Opts) ->
+        Specs = create_tests(Fs, Opts),
+        Results = run_tests(Specs, Opts),
         report_results(Results, Opts).
 
 
-run_timer(#timer{function = F}) when is_function(F, 0) -> {Time, _} = timer:tc(F), Time.
+map(F, Fs) -> lists:map(F, Fs).
+
+pmap(F, Fs, _) -> lists:map(F, Fs).
 
 
-create_timers(Timers, Opts) -> create_timers(Timers, #timer{}, Opts, []).
-
-create_timers([], _, _, Acc) -> lists:reverse(Acc);
-create_timers([Timer|Rest], Spec, Opts, Acc) ->
-    MoreTimers = create_timer(Timer, Spec, Opts),
-    create_timers(Rest, Spec, Opts, MoreTimers ++ Acc);
-create_timers(Timer, Spec, Opts, _Acc) ->
-    create_timer(Timer, Spec, Opts).
+run_timer(#test{function = F}) when is_function(F, 0) -> {Time, _} = timer:tc(F), Time.
 
 
-create_timer({Name, Timers}, Spec, Opts) when is_list(Name) ->
-    create_timers(Timers, Spec#timer{name=Name}, Opts, []);
+create_tests(Fs, Opts) -> create_tests(Fs, #test{}, Opts, []).
+
+create_tests([], _, _, Acc) -> lists:reverse(Acc);
+create_tests([F|Rest], Spec, Opts, Acc) ->
+    MoreFs = create_test(F, Spec, Opts),
+    create_tests(Rest, Spec, Opts, MoreFs ++ Acc);
+create_tests(F, Spec, Opts, _Acc) ->
+    create_test(F, Spec, Opts).
+
+
+create_test({Name, Fs}, Spec, Opts) when is_list(Name) ->
+    create_tests(Fs, Spec#test{name=Name}, Opts, []);
+create_test({Line, Fs}, Spec, Opts) when is_integer(Line), Line > 0 ->
+    create_tests(Fs, Spec#test{line=Line}, Opts, []);
 %% controls
-create_timer({repeat, N, Timers}, Spec, Opts) when is_integer(N), N > 0 ->
-    create_timers(lists:flatten(lists:duplicate(N, Timers)), Spec, Opts, []);
-create_timer({average, Timers}, Spec, Opts) ->
-    [{average, create_timers(Timers, Spec, Opts, [])}];
-%% the default, included for completesness
-create_timer({sum, Timers}, Spec, Opts) ->
-    create_timers(Timers, Spec, Opts, []);
-create_timer({concurrent, Timers}, Spec, Opts) ->
-    [{concurrent, create_timers(Timers, Spec, Opts, [])}];
-%% also default
-create_timer({sequential, Timers}, Spec, Opts) ->
-    create_timers(Timers, Spec, Opts, []);
-%% line / simple test pair
-create_timer({Line, Timer}, Spec, Opts) when is_integer(Line), Line > 0 ->
-    create_timer(Timer, Spec#timer{line=Line}, Opts);
+create_test({repeat, N, Fs}, Spec, Opts) when is_integer(N), N > 0 ->
+    create_tests(lists:flatten(lists:duplicate(N, Fs)), Spec, Opts, []);
+create_test({average, Fs}, Spec, Opts) ->
+    [{average, create_tests(Fs, Spec, Opts, [])}];
+create_test({sum, Fs}, Spec, Opts) ->
+    [{sum, create_tests(Fs, Spec, Opts, [])}];
+create_test({concurrent, Fs}, Spec, Opts) ->
+    [{concurrent, create_tests(Fs, Spec, Opts, [])}];
+create_test({sequential, Fs}, Spec, Opts) ->
+    [{sequential, create_tests(Fs, Spec, Opts, [])}];
 %% simple test representations
-create_timer(Timer, Spec, _Opts) when is_function(Timer, 0) ->
-    [Spec#timer{function=Timer}];
-create_timer({Timer, Args}, Spec, _Opts) when is_function(Timer, 1), is_list(Args) ->
-    [Spec#timer{function={Timer, Args}}];
-create_timer({Mod, Fun}, Spec, _Opts) ->
-    [Spec#timer{function={Mod, Fun, []}}];
-create_timer({Mod, Fun, Args}, Spec, _Opts) when is_list(Args) ->
-    [Spec#timer{function={Mod, Fun, Args}}].
+create_test(F, Spec, _Opts) when is_function(F, 0) ->
+    [Spec#test{function=F}];
+create_test({F, Args}, Spec, _Opts) when is_function(F, 1), is_list(Args) ->
+    [Spec#test{function={F, Args}}];
+create_test({Mod, Fun}, Spec, _Opts) ->
+    [Spec#test{function={Mod, Fun, []}}];
+create_test({Mod, Fun, Args}, Spec, _Opts) when is_list(Args) ->
+    [Spec#test{function={Mod, Fun, Args}}].
 
 
-run_timers(Timers, Opts) -> freq_control:time(Timers, Opts).
+run_tests(Fs, Opts) -> ok.
 
 report_results(Results, _Opts) -> Results.
 
@@ -111,85 +113,105 @@ report_results(Results, _Opts) -> Results.
 faketimer() -> ok.
 
 
-timer_representation_test_() ->
-    %% anon fun for timers
+profiler_representation_test_() ->
+    %% anon fun for profilers
     F = fun() -> ok end,
     G = fun(_) -> ok end,
     [
-        {"anon timer", ?_assertEqual(
-            create_timers(F, []),
-            [#timer{function=F}]
+        {"anon profiler", ?_assertEqual(
+            create_tests(F, []),
+            [#test{function=F}]
         )},
-        {"anon timer with args", ?_assertEqual(
-            create_timers({G, [foo]}, []),
-            [#timer{function={G, [foo]}}]
+        {"anon profiler with args", ?_assertEqual(
+            create_tests({G, [foo]}, []),
+            [#test{function={G, [foo]}}]
         )},
-        {"mf timer", ?_assertEqual(
-            create_timers({?MODULE, faketimer}, []),
-            [#timer{function={?MODULE, faketimer}}]
+        {"mf profiler", ?_assertEqual(
+            create_tests({?MODULE, faketimer}, []),
+            [#test{function={?MODULE, faketimer}}]
         )},
-        {"mf timer with args", ?_assertEqual(
-            create_timers({?MODULE, faketimer, [foo]}, []),
-            [#timer{function={?MODULE, faketimer, [foo]}}]
+        {"mf profiler with args", ?_assertEqual(
+            create_tests({?MODULE, faketimer, [foo]}, []),
+            [#test{function={?MODULE, faketimer, [foo]}}]
         )},
-        {"line annotated timer", ?_assertEqual(
-            create_timers({1, F}, []),
-            [#timer{function=F,line=1}]
+        {"line annotated profiler", ?_assertEqual(
+            create_tests({1, F}, []),
+            [#test{function=F,line=1}]
         )},
-        {"named timer", ?_assertEqual(
-            create_timers({"name", F}, []),
-            [#timer{name="name", function=F}]
+        {"named profiler", ?_assertEqual(
+            create_tests({"name", F}, []),
+            [#test{name="name", function=F}]
         )},
-        {"nested named timer", ?_assertEqual(
-            create_timers({"oldname", {"newname", F}}, []),
-            [#timer{name="newname", function=F}]
+        {"nested named profiler", ?_assertEqual(
+            create_tests({"oldname", {"newname", F}}, []),
+            [#test{name="newname", function=F}]
         )},
-        {"two anon timers", ?_assertEqual(
-            create_timers([F, F], []),
-            [#timer{function=F}, #timer{function=F}]
+        {"two anon profilers", ?_assertEqual(
+            create_tests([F, F], []),
+            [#test{function=F}, #test{function=F}]
         )},
         {"repeat test", ?_assertEqual(
-            create_timers({repeat, 3, {"repeated", F}}, []),
+            create_tests({repeat, 3, {"repeated", F}}, []),
             [
-                #timer{name="repeated", function=F},
-                #timer{name="repeated", function=F},
-                #timer{name="repeated", function=F}
+                #test{name="repeated", function=F},
+                #test{name="repeated", function=F},
+                #test{name="repeated", function=F}
             ]
         )},
         {"average test", ?_assertEqual(
-            create_timers({average, [{"one", F}, {"two", F}]}, []),
-            [{average, [#timer{name="one", function=F}, #timer{name="two", function=F}]}]
+            create_tests({average, [{"one", F}, {"two", F}]}, []),
+            [{average, [#test{name="one", function=F}, #test{name="two", function=F}]}]
+        )},
+        {"average average test", ?_assertEqual(
+            create_tests({average, [
+                {average, [{"one", F}, {"two", F}]},
+                {average, [{"one", F}, {"two", F}]}
+            ]}, []),
+            [{average, [
+                {average, [#test{name="one", function=F}, #test{name="two", function=F}]},
+                {average, [#test{name="one", function=F}, #test{name="two", function=F}]}
+            ]}]
         )},
         {"sum test", ?_assertEqual(
-            create_timers({sum, [{"one", F}, {"two", F}]}, []),
-            [#timer{name="one", function=F}, #timer{name="two", function=F}]
+            create_tests({sum, [{"one", F}, {"two", F}]}, []),
+            [{sum, [#test{name="one", function=F}, #test{name="two", function=F}]}]
         )},
         {"concurrent test", ?_assertEqual(
-            create_timers({concurrent, [{"one", F}, {"two", F}]}, []),
-            [{concurrent, [#timer{name="one", function=F}, #timer{name="two", function=F}]}]
+            create_tests({concurrent, [{"one", F}, {"two", F}]}, []),
+            [{concurrent, [#test{name="one", function=F}, #test{name="two", function=F}]}]
         )},
         {"sequential test", ?_assertEqual(
-            create_timers({sequential, [{"one", F}, {"two", F}]}, []),
-            [#timer{name="one", function=F}, #timer{name="two", function=F}]
+            create_tests({sequential, [{"one", F}, {"two", F}]}, []),
+            [{sequential, [#test{name="one", function=F}, #test{name="two", function=F}]}]
         )},
         {"average repeat test", ?_assertEqual(
-            create_timers({average, {repeat, 3, {"repeated", F}}}, []),
+            create_tests({average, {repeat, 3, {"repeated", F}}}, []),
             [{average, [
-                #timer{name="repeated", function=F},
-                #timer{name="repeated", function=F},
-                #timer{name="repeated", function=F}
+                #test{name="repeated", function=F},
+                #test{name="repeated", function=F},
+                #test{name="repeated", function=F}
             ]}]
         )},
         {"concurrent average test", ?_assertEqual(
-            create_timers({concurrent, [
+            create_tests({concurrent, [
                 {average, [{"one", F}, {"two", F}]},
                 {average, [{"three", F}, {"four", F}]}
             ]}, []),
             [{concurrent, [
-                {average, [#timer{name="one", function=F}, #timer{name="two", function=F}]},
-                {average, [#timer{name="three", function=F}, #timer{name="four", function=F}]}
+                {average, [#test{name="one", function=F}, #test{name="two", function=F}]},
+                {average, [#test{name="three", function=F}, #test{name="four", function=F}]}
             ]}]
-        )}
+        )},
+        {"average concurrent test", ?_assertEqual(
+            create_tests({average, [
+                {concurrent, [{"one", F}, {"two", F}]},
+                {concurrent, [{"three", F}, {"four", F}]}
+            ]}, []),
+            [{average, [
+                {concurrent, [#test{name="one", function=F}, #test{name="two", function=F}]},
+                {concurrent, [#test{name="three", function=F}, #test{name="four", function=F}]}
+            ]}]
+        )}        
     ].
 
 
