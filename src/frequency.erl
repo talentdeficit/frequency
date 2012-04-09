@@ -22,7 +22,7 @@
 
 -module(frequency).
 
--export([profile/1, profile/2, run_timer/1]).
+-export([profile/1, profile/2]).
 
 %% fake function for eunit tests
 -ifdef(TEST).
@@ -54,13 +54,6 @@ profile(Fs, Opts) ->
         Results = run_tests(Specs, Opts),
         report_results(Results, Opts).
 
-
-map(F, Fs) -> lists:map(F, Fs).
-
-pmap(F, Fs, _) -> lists:map(F, Fs).
-
-
-run_timer(#test{function = F}) when is_function(F, 0) -> {Time, _} = timer:tc(F), Time.
 
 
 create_tests(Fs, Opts) -> create_tests(Fs, #test{}, Opts, []).
