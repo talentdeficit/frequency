@@ -85,7 +85,7 @@ basic_profiling_test_() ->
     [{foreach,
         fun() ->
             ok = meck:new(timer, [unstick]),
-            ok = meck:expect(timer, tc, fun(_) -> {100, ok} end)
+            ok = meck:expect(timer, tc, fun(F) when is_function(F, 0) -> {100, ok} end)
         end,
         fun(_) ->
             ?assert(meck:validate(timer)),
