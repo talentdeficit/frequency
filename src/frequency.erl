@@ -77,7 +77,6 @@ run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [T].
 
 
 fake() -> ok.
-
 fake(_) -> ok.
 
 
@@ -107,6 +106,10 @@ basic_profiling_test_() ->
             {"mod/fun with arg", ?_assertEqual(
                 profile({?MODULE, fake, [ok]}, [], [], fun run_normal/2),
                 [100]
+            )},
+            {"mixed test representations", ?_assertEqual(
+                profile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}], [], [], fun run_normal/2),
+                [100, 100, 100, 100]
             )}
         ]
     }].
