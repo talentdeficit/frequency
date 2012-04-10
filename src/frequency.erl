@@ -77,7 +77,11 @@ run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [T].
 
 
 fake() -> ok.
-fake(_) -> ok.
+fake(ok) -> ok.
+
+
+tprofile(Tests) -> tprofile(Tests, []).
+tprofile(Tests, Opts) -> profile(Tests, Opts, [], fun run_normal/2).
 
 
 basic_profiling_test_() ->
@@ -91,24 +95,12 @@ basic_profiling_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"anon fun", ?_assertEqual(
-                profile(fun() -> ok end, [], [], fun run_normal/2),
-                [100]
-            )},
-            {"anon fun with arg", ?_assertEqual(
-                profile({fun(_) -> ok end, [ok]}, [], [], fun run_normal/2),
-                [100]
-            )},
-            {"mod/fun", ?_assertEqual(
-                profile({?MODULE, fake}, [], [], fun run_normal/2),
-                [100]
-            )},
-            {"mod/fun with arg", ?_assertEqual(
-                profile({?MODULE, fake, [ok]}, [], [], fun run_normal/2),
-                [100]
-            )},
+            {"anon fun", ?_assertEqual(tprofile(fun() -> ok end), [100])},
+            {"anon fun with arg", ?_assertEqual(tprofile({fun(_) -> ok end, [ok]}), [100])},
+            {"mod/fun", ?_assertEqual(tprofile({?MODULE, fake}), [100])},
+            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [ok]}), [100])},
             {"mixed test representations", ?_assertEqual(
-                profile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}], [], [], fun run_normal/2),
+                tprofile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}]),
                 [100, 100, 100, 100]
             )}
         ]
