@@ -32,7 +32,7 @@
 -endif.
 
 
--record(test, {
+-record(result, {
     name,
     function,
     line,
@@ -41,8 +41,14 @@
 }).
 
 
--spec profile(Fs::([#test{}] | #test{})) -> ok | {error, term()}.
--spec profile(Fs::([#test{}] | #test{}), Opts::[]) -> ok | {error, term()}.
+-type test() :: function()
+    | {function(), list()}
+    | {module(), atom()}
+    | {module(), atom(), list()}.
+
+
+-spec profile(Fs::([test()] | test())) -> ok | {error, term()}.
+-spec profile(Fs::([test()] | test()), Opts::[]) -> ok | {error, term()}.
 
 profile(Fs) -> profile(Fs, []).
 
@@ -56,12 +62,12 @@ profile([], _, Acc, _) ->
     lists:reverse(Acc);
 profile(F, Opts, _, Run) when is_function(F, 0) ->
     Run(F, Opts);
-profile({F, Args}, Opts, _, Run) when is_function(F, 1), is_list(Args) ->
-    Run(fun() -> F(Args) end, Opts);
+profile({F, Args}, Opts, _, Run) when is_function(F), is_list(Args) ->
+    Run(fun() -> apply(F, Args) end, Opts);
 profile({Mod, Fun}, Opts, _, Run) when is_atom(Mod), is_atom(Fun) ->
     Run(fun() -> Mod:Fun() end, Opts);
 profile({Mod, Fun, Args}, Opts, _, Run) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
-    Run(fun() -> Mod:Fun(Args) end, Opts);
+    Run(fun() -> apply(Mod, Fun, Args) end, Opts);
 profile([F|Fs], Opts, Acc, Run) ->
     profile(Fs, Opts, profile(F, Opts, [], Run) ++ Acc, Run).
 
@@ -77,7 +83,8 @@ run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [T].
 
 
 fake() -> ok.
-fake(ok) -> ok.
+fake(_) -> ok.
+fake(_, _, _) -> ok.
 
 
 tprofile(Tests) -> tprofile(Tests, []).
@@ -96,9 +103,9 @@ basic_profiling_test_() ->
         end,
         [
             {"anon fun", ?_assertEqual(tprofile(fun() -> ok end), [100])},
-            {"anon fun with arg", ?_assertEqual(tprofile({fun(_) -> ok end, [ok]}), [100])},
+            {"anon fun with args", ?_assertEqual(tprofile({fun(_, _) -> ok end, [foo, bar]}), [100])},
             {"mod/fun", ?_assertEqual(tprofile({?MODULE, fake}), [100])},
-            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [ok]}), [100])},
+            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [foo, bar, baz]}), [100])},
             {"mixed test representations", ?_assertEqual(
                 tprofile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}]),
                 [100, 100, 100, 100]
