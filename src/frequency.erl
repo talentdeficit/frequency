@@ -41,6 +41,12 @@
 }).
 
 
+-record(config, {
+    name,
+    run = fun run_normal/2
+}).
+
+
 -type test() :: function()
     | {function(), list()}
     | {module(), atom()}
@@ -53,29 +59,40 @@
 profile(Fs) -> profile(Fs, []).
 
 profile(Fs, Opts) ->
-    Results = profile(Fs, Opts, [], fun run_normal/2),
+    Results = profile(Fs, #config{}, []),
     report(Results, Opts),
     ok.
 
 
-profile([], _, Acc, _) ->
+profile([], _, Acc) ->
     lists:reverse(Acc);
-profile(F, Opts, _, Run) when is_function(F, 0) ->
-    Run(F, Opts);
-profile({F, Args}, Opts, _, Run) when is_function(F), is_list(Args) ->
-    Run({F, Args}, Opts);
-profile({Mod, Fun}, Opts, _, Run) when is_atom(Mod), is_atom(Fun) ->
-    Run({Mod, Fun}, Opts);
-profile({Mod, Fun, Args}, Opts, _, Run) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
-    Run({Mod, Fun, Args}, Opts);
-profile([F|Fs], Opts, Acc, Run) ->
-    profile(Fs, Opts, profile(F, Opts, [], Run) ++ Acc, Run).
+profile({Name, Test}, Config, Acc) when is_list(Name) ->
+    profile(Test, Config#config{name=Name}, Acc);
+profile(F, Config, _) when is_function(F, 0) ->
+    run(F, Config);
+profile({F, Args}, Config, _) when is_function(F), is_list(Args) ->
+    run({F, Args}, Config);
+profile({Mod, Fun}, Config, _) when is_atom(Mod), is_atom(Fun) ->
+    run({Mod, Fun}, Config);
+profile({Mod, Fun, Args}, Config, _) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
+    run({Mod, Fun, Args}, Config);
+profile([F|Fs], Config, Acc) ->
+    profile(Fs, Config, profile(F, Config, []) ++ Acc).
 
 
 report(Results, _Opts) -> io:format("~p~n", [Results]).
 
 
-run_normal(Test, _Opts) -> time(#result{function = Test}).
+run(Test, Config = #config{run=Run}) ->
+    Run(#result{
+            name = Config#config.name,
+            function = Test
+        },
+        Config
+    ).
+
+
+run_normal(Test, _Config) -> time(Test).
 
 
 time(Result = #result{function={Mod, Fun, Args}}) ->
@@ -102,7 +119,7 @@ fake(_, _, _) -> ok.
 
 
 tprofile(Tests) -> tprofile(Tests, []).
-tprofile(Tests, Opts) -> profile(Tests, Opts, [], fun run_normal/2).
+tprofile(Tests, Opts) -> profile(Tests, #config{}, []).
 
 
 basic_profiling_test_() ->
@@ -174,7 +191,7 @@ named_test_() ->
                 [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
                 tprofile([
-                    {"fun", Fun},
+                    {"anon fun", Fun},
                     {"anon fun with args", FunWithArgs},
                     {"mod/fun", {?MODULE, fake}},
                     {"mod/fun with args", {?MODULE, fake, [foo, bar, baz]}}
