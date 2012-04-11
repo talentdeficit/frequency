@@ -63,11 +63,11 @@ profile([], _, Acc, _) ->
 profile(F, Opts, _, Run) when is_function(F, 0) ->
     Run(F, Opts);
 profile({F, Args}, Opts, _, Run) when is_function(F), is_list(Args) ->
-    Run(fun() -> apply(F, Args) end, Opts);
+    Run({F, Args}, Opts);
 profile({Mod, Fun}, Opts, _, Run) when is_atom(Mod), is_atom(Fun) ->
-    Run(fun() -> Mod:Fun() end, Opts);
+    Run({Mod, Fun}, Opts);
 profile({Mod, Fun, Args}, Opts, _, Run) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
-    Run(fun() -> apply(Mod, Fun, Args) end, Opts);
+    Run({Mod, Fun, Args}, Opts);
 profile([F|Fs], Opts, Acc, Run) ->
     profile(Fs, Opts, profile(F, Opts, [], Run) ++ Acc, Run).
 
@@ -75,7 +75,21 @@ profile([F|Fs], Opts, Acc, Run) ->
 report(Results, _Opts) -> io:format("~p~n", [Results]).
 
 
-run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [#result{time = T}].
+run_normal(Test, _Opts) -> time(#result{function = Test}).
+
+
+time(Result = #result{function={Mod, Fun, Args}}) ->
+    {T, _} = timer:tc(fun() -> apply(Mod, Fun, Args) end),
+    [Result#result{time=T}];
+time(Result = #result{function={Mod, Fun}}) when is_atom(Mod), is_atom(Fun) ->
+    {T, _} = timer:tc(fun() -> apply(Mod, Fun, []) end),
+    [Result#result{time=T}];
+time(Result = #result{function={Fun, Args}}) ->
+    {T, _} = timer:tc(fun() -> apply(Fun, Args) end),
+    [Result#result{time=T}];
+time(Result = #result{function=Fun}) ->
+    {T, _} = timer:tc(Fun),
+    [Result#result{time=T}].
 
 
 -ifdef(TEST).
@@ -92,6 +106,8 @@ tprofile(Tests, Opts) -> profile(Tests, Opts, [], fun run_normal/2).
 
 
 basic_profiling_test_() ->
+    Fun = fun() -> ok end,
+    FunWithArgs = {fun(_, _) -> ok end, [foo, bar]},
     [{foreach,
         fun() ->
             ok = meck:new(timer, [unstick]),
@@ -102,13 +118,73 @@ basic_profiling_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"anon fun", ?_assertEqual(tprofile(fun() -> ok end), [#result{time=100}])},
-            {"anon fun with args", ?_assertEqual(tprofile({fun(_, _) -> ok end, [foo, bar]}), [#result{time=100}])},
-            {"mod/fun", ?_assertEqual(tprofile({?MODULE, fake}), [#result{time=100}])},
-            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [foo, bar, baz]}), [#result{time=100}])},
+            {"anon fun", ?_assertEqual(
+                tprofile(Fun),
+                [#result{function=Fun, time=100}]
+            )},
+            {"anon fun with args", ?_assertEqual(
+                tprofile(FunWithArgs),
+                [#result{function=FunWithArgs, time=100}]
+            )},
+            {"mod/fun", ?_assertEqual(
+                tprofile({?MODULE, fake}),
+                [#result{function={?MODULE, fake}, time=100}])},
+            {"mod/fun with arg", ?_assertEqual(
+                tprofile({?MODULE, fake, [foo, bar, baz]}),
+                [#result{function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
-                tprofile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}]),
-                [#result{time=100}, #result{time=100}, #result{time=100}, #result{time=100}]
+                tprofile([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
+                [
+                    #result{function=Fun, time=100},
+                    #result{function=FunWithArgs, time=100},
+                    #result{function={?MODULE, fake}, time=100},
+                    #result{function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                ]
+            )}
+        ]
+    }].
+
+
+named_test_() ->
+    Fun = fun() -> ok end,
+    FunWithArgs = {fun(_, _) -> ok end, [foo, bar]},
+    [{foreach,
+        fun() ->
+            ok = meck:new(timer, [unstick]),
+            ok = meck:expect(timer, tc, fun(F) when is_function(F, 0) -> {100, ok} end)
+        end,
+        fun(_) ->
+            ?assert(meck:validate(timer)),
+            ok = meck:unload(timer)
+        end,
+        [
+            {"anon fun", ?_assertEqual(
+                tprofile({"anon fun", Fun}),
+                [#result{name="anon fun", function=Fun, time=100}]
+            )},
+            {"anon fun with args", ?_assertEqual(
+                tprofile({"anon fun with args", FunWithArgs}),
+                [#result{name="anon fun with args", function=FunWithArgs, time=100}]
+            )},
+            {"mod/fun", ?_assertEqual(
+                tprofile({"mod/fun", {?MODULE, fake}}),
+                [#result{name="mod/fun", function={?MODULE, fake}, time=100}])},
+            {"mod/fun with arg", ?_assertEqual(
+                tprofile({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
+                [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
+            {"mixed test representations", ?_assertEqual(
+                tprofile([
+                    {"fun", Fun},
+                    {"anon fun with args", FunWithArgs},
+                    {"mod/fun", {?MODULE, fake}},
+                    {"mod/fun with args", {?MODULE, fake, [foo, bar, baz]}}
+                ]),
+                [
+                    #result{name="anon fun", function=Fun, time=100},
+                    #result{name="anon fun with args", function=FunWithArgs, time=100},
+                    #result{name="mod/fun", function={?MODULE, fake}, time=100},
+                    #result{name="mod/fun with args", function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                ]
             )}
         ]
     }].
