@@ -75,7 +75,7 @@ profile([F|Fs], Opts, Acc, Run) ->
 report(Results, _Opts) -> io:format("~p~n", [Results]).
 
 
-run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [T].
+run_normal(Test, _Opts) -> {T, _} = timer:tc(Test), [#result{time = T}].
 
 
 -ifdef(TEST).
@@ -102,13 +102,13 @@ basic_profiling_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"anon fun", ?_assertEqual(tprofile(fun() -> ok end), [100])},
-            {"anon fun with args", ?_assertEqual(tprofile({fun(_, _) -> ok end, [foo, bar]}), [100])},
-            {"mod/fun", ?_assertEqual(tprofile({?MODULE, fake}), [100])},
-            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [foo, bar, baz]}), [100])},
+            {"anon fun", ?_assertEqual(tprofile(fun() -> ok end), [#result{time=100}])},
+            {"anon fun with args", ?_assertEqual(tprofile({fun(_, _) -> ok end, [foo, bar]}), [#result{time=100}])},
+            {"mod/fun", ?_assertEqual(tprofile({?MODULE, fake}), [#result{time=100}])},
+            {"mod/fun with arg", ?_assertEqual(tprofile({?MODULE, fake, [foo, bar, baz]}), [#result{time=100}])},
             {"mixed test representations", ?_assertEqual(
                 tprofile([fun() -> ok end, {fun(ok) -> ok end, [ok]}, {?MODULE, fake}, {?MODULE, fake, [ok]}]),
-                [100, 100, 100, 100]
+                [#result{time=100}, #result{time=100}, #result{time=100}, #result{time=100}]
             )}
         ]
     }].
