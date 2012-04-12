@@ -37,6 +37,7 @@
     function,
     line,
     time,
+    sum_count,
     error
 }).
 
@@ -64,10 +65,14 @@ profile(Fs, Opts) ->
     ok.
 
 
-profile([], _, Acc) ->
+profile([], _Config, Acc) ->
     lists:reverse(Acc);
-profile({Name, Test}, Config, Acc) when is_list(Name) ->
-    profile(Test, Config#config{name=Name}, Acc);
+profile({Name, Test}, Config, []) when is_list(Name) ->
+    profile(Test, Config#config{name=Name}, []);
+profile({sum, Tests}, Config, []) ->
+    [reduce({sum, profile(Tests, Config, [])}, Config)];
+profile({average, Tests}, Config, []) ->
+    [reduce({average, profile(Tests, Config, [])}, Config)];
 profile(F, Config, _) when is_function(F, 0) ->
     run(F, Config);
 profile({F, Args}, Config, _) when is_function(F), is_list(Args) ->
@@ -81,6 +86,23 @@ profile([F|Fs], Config, Acc) ->
 
 
 report(Results, _Opts) -> io:format("~p~n", [Results]).
+
+
+reduce(Results, Config) when is_list(Results) -> [ reducer(Element, Config) || Element <- Results ];
+reduce(Results, Config) -> reducer(Results, Config).
+
+reducer(Result, Config) when is_record(Result, result) -> Result;
+reducer({sum, Results}, Config) ->
+    lists:foldl(fun sum/2, #result{name=Config#config.name, time=0}, Results);
+reducer({average, Results}, Config) ->
+    Average = lists:foldl(fun sum/2, #result{name=Config#config.name, time=0}, Results),
+    Average#result{time=(Average#result.time div length(Results))}.
+
+sum(Test = #result{time=Time}, Acc = #result{time=Total}) when is_record(Test, result) ->
+    Acc#result{time=Total + Time};
+sum(Else, Acc = #result{time=Total}) ->
+    Time = (reduce(Else, #config{}))#result.time,
+    Acc#result{time=Total + Time}.
 
 
 run(Test, Config = #config{run=Run}) ->
@@ -118,8 +140,8 @@ fake(_) -> ok.
 fake(_, _, _) -> ok.
 
 
-tprofile(Tests) -> tprofile(Tests, []).
-tprofile(Tests, _Opts) -> profile(Tests, #config{}, []).
+test_profile(Tests) -> test_profile(Tests, []).
+test_profile(Tests, _Opts) -> profile(Tests, #config{}, []).
 
 
 basic_profiling_test_() ->
@@ -136,21 +158,21 @@ basic_profiling_test_() ->
         end,
         [
             {"anon fun", ?_assertEqual(
-                tprofile(Fun),
+                test_profile(Fun),
                 [#result{function=Fun, time=100}]
             )},
             {"anon fun with args", ?_assertEqual(
-                tprofile(FunWithArgs),
+                test_profile(FunWithArgs),
                 [#result{function=FunWithArgs, time=100}]
             )},
             {"mod/fun", ?_assertEqual(
-                tprofile({?MODULE, fake}),
+                test_profile({?MODULE, fake}),
                 [#result{function={?MODULE, fake}, time=100}])},
             {"mod/fun with arg", ?_assertEqual(
-                tprofile({?MODULE, fake, [foo, bar, baz]}),
+                test_profile({?MODULE, fake, [foo, bar, baz]}),
                 [#result{function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
-                tprofile([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
+                test_profile([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
                 [
                     #result{function=Fun, time=100},
                     #result{function=FunWithArgs, time=100},
@@ -162,7 +184,7 @@ basic_profiling_test_() ->
     }].
 
 
-named_test_() ->
+named_basic_test_() ->
     Fun = fun() -> ok end,
     FunWithArgs = {fun(_, _) -> ok end, [foo, bar]},
     [{foreach,
@@ -176,21 +198,21 @@ named_test_() ->
         end,
         [
             {"anon fun", ?_assertEqual(
-                tprofile({"anon fun", Fun}),
+                test_profile({"anon fun", Fun}),
                 [#result{name="anon fun", function=Fun, time=100}]
             )},
             {"anon fun with args", ?_assertEqual(
-                tprofile({"anon fun with args", FunWithArgs}),
+                test_profile({"anon fun with args", FunWithArgs}),
                 [#result{name="anon fun with args", function=FunWithArgs, time=100}]
             )},
             {"mod/fun", ?_assertEqual(
-                tprofile({"mod/fun", {?MODULE, fake}}),
+                test_profile({"mod/fun", {?MODULE, fake}}),
                 [#result{name="mod/fun", function={?MODULE, fake}, time=100}])},
             {"mod/fun with arg", ?_assertEqual(
-                tprofile({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
+                test_profile({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
                 [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
-                tprofile([
+                test_profile([
                     {"anon fun", Fun},
                     {"anon fun with args", FunWithArgs},
                     {"mod/fun", {?MODULE, fake}},
@@ -208,11 +230,67 @@ named_test_() ->
 
 sum_test_() ->
     Fun = fun() -> ok end,
-    [
-        {"sum test", ?_assertEqual(
-            tprofile({sum, [Fun, Fun, Fun]}),
-            [#result{time=300}]
-        )}
-    ].
+    [{foreach,
+        fun() ->
+            ok = meck:new(timer, [unstick]),
+            ok = meck:expect(timer, tc, fun(F) when is_function(F, 0) -> {100, ok} end)
+        end,
+        fun(_) ->
+            ?assert(meck:validate(timer)),
+            ok = meck:unload(timer)
+        end,
+        [
+            {"no sum", ?_assertEqual(test_profile({sum, Fun}), [#result{time=100}])},
+            {"named sum", ?_assertEqual(
+                test_profile({"sum", {sum, [Fun, Fun, Fun]}}),
+                [#result{name="sum", time=300}]
+            )},
+            {"sum", ?_assertEqual(
+                test_profile({sum, [Fun, Fun, Fun]}),
+                [#result{time=300}]
+            )},
+            {"sum of sums", ?_assertEqual(
+                test_profile({sum, [{sum, [Fun, Fun, Fun]}, {sum, [Fun, Fun, {sum, [Fun]}]}]}),
+                [#result{time=600}]
+            )}
+        ]
+    }].
+
+
+average_test_() ->
+    Fun = fun() -> ok end,
+    [{foreach,
+        fun() ->
+            ok = meck:new(timer, [unstick]),
+            ok = meck:sequence(
+                timer,
+                tc,
+                1,
+                [{100, ok}, {300, ok}, {500, ok}, {200, ok}, {600, ok}, {1000, ok}]
+            )
+        end,
+        fun(_) ->
+            ?assert(meck:validate(timer)),
+            ok = meck:unload(timer)
+        end,
+        [
+            {"no average", ?_assertEqual(test_profile({average, Fun}), [#result{time=100}])},
+            {"average", ?_assertEqual(
+                test_profile({average, [Fun, Fun, Fun]}),
+                [#result{time=300}]
+            )},
+            {"named average", ?_assertEqual(
+                test_profile({"average", {average, [Fun, Fun, Fun]}}),
+                [#result{name="average", time=300}]
+            )},
+            {"average of averages", ?_assertEqual(
+                test_profile({average, [
+                    {average, [Fun, Fun, Fun]},
+                    {average, [Fun, Fun, {average, [Fun]}]}
+                ]}),
+                [#result{time=450}]
+            )}
+        ]
+    }].
 
 -endif.
