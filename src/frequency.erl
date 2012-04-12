@@ -28,7 +28,7 @@
 
 %% fake function for eunit tests
 -ifdef(TEST).
--export([fake/0, fake/1]).
+-export([fake/0, fake/1, fake/3]).
 -endif.
 
 
@@ -119,7 +119,7 @@ fake(_, _, _) -> ok.
 
 
 tprofile(Tests) -> tprofile(Tests, []).
-tprofile(Tests, Opts) -> profile(Tests, #config{}, []).
+tprofile(Tests, _Opts) -> profile(Tests, #config{}, []).
 
 
 basic_profiling_test_() ->
@@ -205,5 +205,14 @@ named_test_() ->
             )}
         ]
     }].
+
+sum_test_() ->
+    Fun = fun() -> ok end,
+    [
+        {"sum test", ?_assertEqual(
+            tprofile({sum, [Fun, Fun, Fun]}),
+            [#result{time=300}]
+        )}
+    ].
 
 -endif.
