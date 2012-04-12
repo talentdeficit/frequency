@@ -67,16 +67,22 @@ profile(Fs, Opts) ->
 
 profile([], _Config, Acc) ->
     lists:reverse(Acc);
+%% name the next test, note that you can only name individual tests, and not
+%%  groups of tests. if a test in a list of tests is not specifically named
+%%  it is considered unnamed, there's no name inheritance
 profile({Name, Test}, Config, []) when is_list(Name) ->
     profile(Test, Config#config{name=Name}, []);
+%% control fixtures
 profile({sum, Tests}, Config, []) ->
     [reduce({sum, profile(Tests, Config, [])}, Config)];
 profile({average, Tests}, Config, []) ->
     [reduce({average, profile(Tests, Config, [])}, Config)];
+%% control fixtures with inline names, equivalent to `{name, {foo, Tests}}`
 profile({Name, sum, Tests}, Config, []) when is_list(Name) ->
     [reduce({sum, profile(Tests, Config, [])}, Config#config{name=Name})];
 profile({Name, average, Tests}, Config, []) when is_list(Name) ->
     [reduce({average, profile(Tests, Config, [])}, Config#config{name=Name})];
+%% simple test representations
 profile(F, Config, _) when is_function(F, 0) ->
     run(F, Config);
 profile({F, Args}, Config, _) when is_function(F), is_list(Args) ->
@@ -85,15 +91,24 @@ profile({Mod, Fun}, Config, _) when is_atom(Mod), is_atom(Fun) ->
     run({Mod, Fun}, Config);
 profile({Mod, Fun, Args}, Config, _) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
     run({Mod, Fun, Args}, Config);
+%% list of tests, unset name
 profile([F|Fs], Config, Acc) ->
-    profile(Fs, Config, profile(F, Config, []) ++ Acc).
+    profile(
+        Fs,
+        Config#config{name=undefined},
+        profile(F, Config#config{name=undefined}, []) ++ Acc
+    ).
 
 
+%% placeholder for now
 report(Results, _Opts) -> io:format("~p~n", [Results]).
 
 
-reduce(Results, Config) when is_list(Results) -> [ reducer(Element, Config) || Element <- Results ];
-reduce(Results, Config) -> reducer(Results, Config).
+%% reduce any `sum` or `average` controls to singular results
+reduce(Results, Config) when is_list(Results) ->
+    [ reducer(Element, Config) || Element <- Results ];
+reduce(Results, Config) ->
+    reducer(Results, Config).
 
 reducer(Result, Config) when is_record(Result, result) -> Result;
 reducer({sum, Results}, Config) ->
@@ -304,5 +319,6 @@ average_test_() ->
             )}
         ]
     }].
+
 
 -endif.
