@@ -65,6 +65,10 @@ profile(Fs, Opts) ->
     ok.
 
 
+%% placeholder for now
+report(Results, _Opts) -> io:format("~p~n", [Results]).
+
+
 profile([], _Config, Acc) ->
     lists:reverse(Acc);
 %% name the next test, note that you can only name individual tests, and not
@@ -77,6 +81,8 @@ profile({sum, Tests}, Config, []) ->
     [reduce({sum, profile(Tests, Config, [])}, Config)];
 profile({average, Tests}, Config, []) ->
     [reduce({average, profile(Tests, Config, [])}, Config)];
+profile({repeat, N, Tests}, Config, []) when is_integer(N), N > 0 ->
+    profile(repeat(Tests, N), Config, []);
 %% control fixtures with inline names, equivalent to `{name, {foo, Tests}}`
 profile({Name, sum, Tests}, Config, []) when is_list(Name) ->
     [reduce({sum, profile(Tests, Config, [])}, Config#config{name=Name})];
@@ -100,17 +106,13 @@ profile([F|Fs], Config, Acc) ->
     ).
 
 
-%% placeholder for now
-report(Results, _Opts) -> io:format("~p~n", [Results]).
-
-
 %% reduce any `sum` or `average` controls to singular results
 reduce(Results, Config) when is_list(Results) ->
     [ reducer(Element, Config) || Element <- Results ];
 reduce(Results, Config) ->
     reducer(Results, Config).
 
-reducer(Result, Config) when is_record(Result, result) -> Result;
+reducer(Result, _Config) when is_record(Result, result) -> Result;
 reducer({sum, Results}, Config) ->
     lists:foldl(fun sum/2, #result{name=Config#config.name, time=0}, Results);
 reducer({average, Results}, Config) ->
@@ -122,6 +124,10 @@ sum(Test = #result{time=Time}, Acc = #result{time=Total}) when is_record(Test, r
 sum(Else, Acc = #result{time=Total}) ->
     Time = (reduce(Else, #config{}))#result.time,
     Acc#result{time=Total + Time}.
+
+
+repeat(Tests, N) when is_list(Tests) -> lists:flatten(lists:duplicate(N, Tests));
+repeat(Test, N) -> lists:duplicate(N, Test).
 
 
 run(Test, Config = #config{run=Run}) ->
@@ -320,5 +326,34 @@ average_test_() ->
         ]
     }].
 
+
+repeat_test_() ->
+    Fun = fun() -> ok end,
+    FunWithArgs = {fun(_, _) -> ok end, [foo, bar]},
+    [{foreach,
+        fun() ->
+            ok = meck:new(timer, [unstick]),
+            ok = meck:expect(timer, tc, fun(F) when is_function(F, 0) -> {100, ok} end)
+        end,
+        fun(_) ->
+            ?assert(meck:validate(timer)),
+            ok = meck:unload(timer)
+        end,
+        [
+            {"repeat", ?_assertEqual(
+                test_profile({repeat, 3, Fun}),
+                lists:flatten(lists:duplicate(3, [#result{function=Fun, time=100}]))
+            )},
+            {"compound repeat", ?_assertEqual(
+                test_profile({repeat, 3, [Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]}),
+                lists:flatten(lists:duplicate(3, [
+                    #result{function=Fun, time=100},
+                    #result{function=FunWithArgs, time=100},
+                    #result{function={?MODULE, fake}, time=100},
+                    #result{function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                ]))
+            )}
+        ]
+    }].
 
 -endif.
