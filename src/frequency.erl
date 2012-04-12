@@ -73,6 +73,10 @@ profile({sum, Tests}, Config, []) ->
     [reduce({sum, profile(Tests, Config, [])}, Config)];
 profile({average, Tests}, Config, []) ->
     [reduce({average, profile(Tests, Config, [])}, Config)];
+profile({Name, sum, Tests}, Config, []) when is_list(Name) ->
+    [reduce({sum, profile(Tests, Config, [])}, Config#config{name=Name})];
+profile({Name, average, Tests}, Config, []) when is_list(Name) ->
+    [reduce({average, profile(Tests, Config, [])}, Config#config{name=Name})];
 profile(F, Config, _) when is_function(F, 0) ->
     run(F, Config);
 profile({F, Args}, Config, _) when is_function(F), is_list(Args) ->
@@ -245,6 +249,10 @@ sum_test_() ->
                 test_profile({"sum", {sum, [Fun, Fun, Fun]}}),
                 [#result{name="sum", time=300}]
             )},
+            {"named sum", ?_assertEqual(
+                test_profile({"sum", sum, [Fun, Fun, Fun]}),
+                [#result{name="sum", time=300}]
+            )},
             {"sum", ?_assertEqual(
                 test_profile({sum, [Fun, Fun, Fun]}),
                 [#result{time=300}]
@@ -281,6 +289,10 @@ average_test_() ->
             )},
             {"named average", ?_assertEqual(
                 test_profile({"average", {average, [Fun, Fun, Fun]}}),
+                [#result{name="average", time=300}]
+            )},
+            {"inline named average", ?_assertEqual(
+                test_profile({"average", average, [Fun, Fun, Fun]}),
                 [#result{name="average", time=300}]
             )},
             {"average of averages", ?_assertEqual(
