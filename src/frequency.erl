@@ -48,10 +48,17 @@
 }).
 
 
--type test() :: function()
+-type test() :: [test()]
+    | function()
     | {function(), list()}
     | {module(), atom()}
-    | {module(), atom(), list()}.
+    | {module(), atom(), list()}
+    | {list(), test()}
+    | {repeat, integer(), test()}
+    | {sum, test()}
+    | {list(), sum, test()}
+    | {average, test()}
+    | {list(), average, test()}.
 
 
 -spec profile(Fs::([test()] | test())) -> ok | {error, term()}.
