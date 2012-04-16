@@ -77,17 +77,8 @@ profile([], _Config, Acc) ->
 profile({Name, Test}, Config, []) when is_list(Name) ->
     profile(Test, Config#config{name=Name}, []);
 %% control fixtures
-profile({sum, Tests}, Config, []) ->
-    [reduce({sum, profile(Tests, Config, [])}, Config)];
-profile({average, Tests}, Config, []) ->
-    [reduce({average, profile(Tests, Config, [])}, Config)];
 profile({repeat, N, Tests}, Config, []) when is_integer(N), N > 0 ->
     profile(repeat(Tests, N), Config, []);
-%% control fixtures with inline names, equivalent to `{name, {foo, Tests}}`
-profile({Name, sum, Tests}, Config, []) when is_list(Name) ->
-    [reduce({sum, profile(Tests, Config, [])}, Config#config{name=Name})];
-profile({Name, average, Tests}, Config, []) when is_list(Name) ->
-    [reduce({average, profile(Tests, Config, [])}, Config#config{name=Name})];
 %% simple test representations
 profile(F, Config, _) when is_function(F, 0) ->
     run(F, Config);
@@ -97,6 +88,16 @@ profile({Mod, Fun}, Config, _) when is_atom(Mod), is_atom(Fun) ->
     run({Mod, Fun}, Config);
 profile({Mod, Fun, Args}, Config, _) when is_atom(Mod), is_atom(Fun), is_list(Args) ->
     run({Mod, Fun, Args}, Config);
+%% complex tests
+profile({sum, Tests}, Config, []) ->
+    [reduce({sum, profile(Tests, Config, [])}, Config)];
+profile({average, Tests}, Config, []) ->
+    [reduce({average, profile(Tests, Config, [])}, Config)];
+%% complex tests with inline names, equivalent to `{name, {foo, Tests}}`
+profile({Name, sum, Tests}, Config, []) when is_list(Name) ->
+    [reduce({sum, profile(Tests, Config, [])}, Config#config{name=Name})];
+profile({Name, average, Tests}, Config, []) when is_list(Name) ->
+    [reduce({average, profile(Tests, Config, [])}, Config#config{name=Name})];
 %% list of tests, unset name
 profile([F|Fs], Config, Acc) ->
     profile(
@@ -131,12 +132,7 @@ repeat(Test, N) -> lists:duplicate(N, Test).
 
 
 run(Test, Config = #config{run=Run}) ->
-    Run(#result{
-            name = Config#config.name,
-            function = Test
-        },
-        Config
-    ).
+    Run(#result{name = Config#config.name, function = Test}, Config).
 
 
 run_normal(Test, _Config) -> time(Test).
@@ -165,8 +161,8 @@ fake(_) -> ok.
 fake(_, _, _) -> ok.
 
 
-test_profile(Tests) -> test_profile(Tests, []).
-test_profile(Tests, _Opts) -> profile(Tests, #config{}, []).
+p(Tests) -> p(Tests, []).
+p(Tests, _Opts) -> profile(Tests, #config{}, []).
 
 
 basic_profiling_test_() ->
@@ -183,21 +179,21 @@ basic_profiling_test_() ->
         end,
         [
             {"anon fun", ?_assertEqual(
-                test_profile(Fun),
+                p(Fun),
                 [#result{function=Fun, time=100}]
             )},
             {"anon fun with args", ?_assertEqual(
-                test_profile(FunWithArgs),
+                p(FunWithArgs),
                 [#result{function=FunWithArgs, time=100}]
             )},
             {"mod/fun", ?_assertEqual(
-                test_profile({?MODULE, fake}),
+                p({?MODULE, fake}),
                 [#result{function={?MODULE, fake}, time=100}])},
             {"mod/fun with arg", ?_assertEqual(
-                test_profile({?MODULE, fake, [foo, bar, baz]}),
+                p({?MODULE, fake, [foo, bar, baz]}),
                 [#result{function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
-                test_profile([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
+                p([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
                 [
                     #result{function=Fun, time=100},
                     #result{function=FunWithArgs, time=100},
@@ -223,21 +219,21 @@ named_basic_test_() ->
         end,
         [
             {"anon fun", ?_assertEqual(
-                test_profile({"anon fun", Fun}),
+                p({"anon fun", Fun}),
                 [#result{name="anon fun", function=Fun, time=100}]
             )},
             {"anon fun with args", ?_assertEqual(
-                test_profile({"anon fun with args", FunWithArgs}),
+                p({"anon fun with args", FunWithArgs}),
                 [#result{name="anon fun with args", function=FunWithArgs, time=100}]
             )},
             {"mod/fun", ?_assertEqual(
-                test_profile({"mod/fun", {?MODULE, fake}}),
+                p({"mod/fun", {?MODULE, fake}}),
                 [#result{name="mod/fun", function={?MODULE, fake}, time=100}])},
             {"mod/fun with arg", ?_assertEqual(
-                test_profile({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
+                p({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
                 [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
             {"mixed test representations", ?_assertEqual(
-                test_profile([
+                p([
                     {"anon fun", Fun},
                     {"anon fun with args", FunWithArgs},
                     {"mod/fun", {?MODULE, fake}},
@@ -265,21 +261,21 @@ sum_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"no sum", ?_assertEqual(test_profile({sum, Fun}), [#result{time=100}])},
+            {"no sum", ?_assertEqual(p({sum, Fun}), [#result{time=100}])},
             {"named sum", ?_assertEqual(
-                test_profile({"sum", {sum, [Fun, Fun, Fun]}}),
+                p({"sum", {sum, [Fun, Fun, Fun]}}),
                 [#result{name="sum", time=300}]
             )},
             {"named sum", ?_assertEqual(
-                test_profile({"sum", sum, [Fun, Fun, Fun]}),
+                p({"sum", sum, [Fun, Fun, Fun]}),
                 [#result{name="sum", time=300}]
             )},
             {"sum", ?_assertEqual(
-                test_profile({sum, [Fun, Fun, Fun]}),
+                p({sum, [Fun, Fun, Fun]}),
                 [#result{time=300}]
             )},
             {"sum of sums", ?_assertEqual(
-                test_profile({sum, [{sum, [Fun, Fun, Fun]}, {sum, [Fun, Fun, {sum, [Fun]}]}]}),
+                p({sum, [{sum, [Fun, Fun, Fun]}, {sum, [Fun, Fun, {sum, [Fun]}]}]}),
                 [#result{time=600}]
             )}
         ]
@@ -303,21 +299,21 @@ average_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"no average", ?_assertEqual(test_profile({average, Fun}), [#result{time=100}])},
+            {"no average", ?_assertEqual(p({average, Fun}), [#result{time=100}])},
             {"average", ?_assertEqual(
-                test_profile({average, [Fun, Fun, Fun]}),
+                p({average, [Fun, Fun, Fun]}),
                 [#result{time=300}]
             )},
             {"named average", ?_assertEqual(
-                test_profile({"average", {average, [Fun, Fun, Fun]}}),
+                p({"average", {average, [Fun, Fun, Fun]}}),
                 [#result{name="average", time=300}]
             )},
             {"inline named average", ?_assertEqual(
-                test_profile({"average", average, [Fun, Fun, Fun]}),
+                p({"average", average, [Fun, Fun, Fun]}),
                 [#result{name="average", time=300}]
             )},
             {"average of averages", ?_assertEqual(
-                test_profile({average, [
+                p({average, [
                     {average, [Fun, Fun, Fun]},
                     {average, [Fun, Fun, {average, [Fun]}]}
                 ]}),
@@ -341,11 +337,11 @@ repeat_test_() ->
         end,
         [
             {"repeat", ?_assertEqual(
-                test_profile({repeat, 3, Fun}),
+                p({repeat, 3, Fun}),
                 lists:flatten(lists:duplicate(3, [#result{function=Fun, time=100}]))
             )},
             {"compound repeat", ?_assertEqual(
-                test_profile({repeat, 3, [Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]}),
+                p({repeat, 3, [Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]}),
                 lists:flatten(lists:duplicate(3, [
                     #result{function=Fun, time=100},
                     #result{function=FunWithArgs, time=100},
