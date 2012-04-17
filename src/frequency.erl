@@ -36,9 +36,7 @@
     name,
     function,
     line,
-    time,
-    sum_count,
-    error
+    time
 }).
 
 
@@ -61,19 +59,27 @@
     | {list(), average, test()}.
 
 
--spec profile(Fs::([test()] | test())) -> ok | {error, term()}.
--spec profile(Fs::([test()] | test()), Opts::[]) -> ok | {error, term()}.
+-spec profile(Fs::test()) -> ok | {error, term()}.
+-spec profile(Fs::test(), Opts::[]) -> ok | {error, term()}.
 
 profile(Fs) -> profile(Fs, []).
 
 profile(Fs, Opts) ->
     Results = profile(Fs, #config{}, []),
-    report(Results, Opts),
-    ok.
+    report(Results, Opts).
 
 
-%% placeholder for now
-report(Results, _Opts) -> io:format("~p~n", [Results]).
+report(Results, Opts) ->
+    report(Results, Opts, []).
+
+report([], _Opts, Acc) -> lists:reverse(Acc);
+report([Result|Rest], Opts, Acc) ->
+    report(Rest, Opts, [[
+        {name, Result#result.name},
+        {function, Result#result.function},
+        {line, Result#result.line},
+        {time, Result#result.time}
+    ] | Acc]).
 
 
 profile([], _Config, Acc) ->
