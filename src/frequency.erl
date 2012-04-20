@@ -22,7 +22,7 @@
 
 -module(frequency).
 
--export([profile/1, profile/2]).
+-export([profile/1, profile/2, report/1, report/2]).
 -export([run_normal/2]).
 
 
@@ -36,7 +36,7 @@
     name,
     function,
     line,
-    time
+    result
 }).
 
 
@@ -65,8 +65,7 @@
 profile(Fs) -> profile(Fs, []).
 
 profile(Fs, Opts) ->
-    Results = profile(Fs, #config{}, []),
-    report(Results, Opts).
+    profile(Fs, #config{}, []).
 
 
 report(Results, Opts) ->
@@ -78,7 +77,7 @@ report([Result|Rest], Opts, Acc) ->
         {name, Result#result.name},
         {function, Result#result.function},
         {line, Result#result.line},
-        {time, Result#result.time}
+        {time, Result#result.result}
     ] | Acc]).
 
 
@@ -128,16 +127,16 @@ reduce(Results, Config) ->
 
 reducer(Result, _Config) when is_record(Result, result) -> Result;
 reducer({sum, Results}, Config) ->
-    lists:foldl(fun sum/2, #result{name=Config#config.name, time=0}, Results);
+    lists:foldl(fun sum/2, #result{name=Config#config.name, result=0}, Results);
 reducer({average, Results}, Config) ->
-    Average = lists:foldl(fun sum/2, #result{name=Config#config.name, time=0}, Results),
-    Average#result{time=(Average#result.time div length(Results))}.
+    Average = lists:foldl(fun sum/2, #result{name=Config#config.name, result=0}, Results),
+    Average#result{result=(Average#result.result div length(Results))}.
 
-sum(Test = #result{time=Time}, Acc = #result{time=Total}) when is_record(Test, result) ->
-    Acc#result{time=Total + Time};
-sum(Else, Acc = #result{time=Total}) ->
-    Time = (reduce(Else, #config{}))#result.time,
-    Acc#result{time=Total + Time}.
+sum(Test = #result{result=Time}, Acc = #result{result=Total}) when is_record(Test, result) ->
+    Acc#result{result=Total + Time};
+sum(Else, Acc = #result{result=Total}) ->
+    Time = (reduce(Else, #config{}))#result.result,
+    Acc#result{result=Total + Time}.
 
 
 repeat(Tests, N) when is_list(Tests) -> lists:flatten(lists:duplicate(N, Tests));
@@ -148,21 +147,49 @@ run(Test, Config = #config{run=Run}) ->
     Run(#result{name = Config#config.name, function = Test}, Config).
 
 
-run_normal(Test, _Config) -> time(Test).
+%% run one test in it's own process, shimmed from the main process
+run_normal(Test, Config) -> run_test(Test, Config).
+
+
+run_test(Test, Config) ->
+    Parent = self(),
+    _ShimPid = spawn_opt(fun() -> shim_test(Parent, Test, Config) end, []),
+    rec_loop().
+
+
+rec_loop() ->
+    receive {test_result, Result} -> Result; _ -> rec_loop() end.
+
+
+shim_test(Parent, Test, _Config) ->
+    {TestPid, MonitorRef} = spawn_opt(fun() -> test_wrapper() end, [monitor]),
+    %% set shim as target for io from test
+    group_leader(TestPid, self()),
+    TestPid ! {test, self(), Test},
+    receive
+        {'DOWN', MonitorRef, process, TestPid, Exit} ->
+            Parent ! {test_result, Test#result{result = Exit}};
+        {test_result, Result} ->
+            Parent ! {test_result, Result}
+    end.
+
+
+test_wrapper() ->
+    receive {test, From, Test} -> From ! {test_result, time(Test)}  end.
 
 
 time(Result = #result{function={Mod, Fun, Args}}) ->
     {T, _} = timer:tc(fun() -> apply(Mod, Fun, Args) end),
-    [Result#result{time=T}];
+    [Result#result{result=T}];
 time(Result = #result{function={Mod, Fun}}) when is_atom(Mod), is_atom(Fun) ->
     {T, _} = timer:tc(fun() -> apply(Mod, Fun, []) end),
-    [Result#result{time=T}];
+    [Result#result{result=T}];
 time(Result = #result{function={Fun, Args}}) ->
     {T, _} = timer:tc(fun() -> apply(Fun, Args) end),
-    [Result#result{time=T}];
+    [Result#result{result=T}];
 time(Result = #result{function=Fun}) ->
     {T, _} = timer:tc(Fun),
-    [Result#result{time=T}].
+    [Result#result{result=T}].
 
 
 -ifdef(TEST).
@@ -193,25 +220,25 @@ basic_profiling_test_() ->
         [
             {"anon fun", ?_assertEqual(
                 p(Fun),
-                [#result{function=Fun, time=100}]
+                [#result{function=Fun, result=100}]
             )},
             {"anon fun with args", ?_assertEqual(
                 p(FunWithArgs),
-                [#result{function=FunWithArgs, time=100}]
+                [#result{function=FunWithArgs, result=100}]
             )},
             {"mod/fun", ?_assertEqual(
                 p({?MODULE, fake}),
-                [#result{function={?MODULE, fake}, time=100}])},
+                [#result{function={?MODULE, fake}, result=100}])},
             {"mod/fun with arg", ?_assertEqual(
                 p({?MODULE, fake, [foo, bar, baz]}),
-                [#result{function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
+                [#result{function={?MODULE, fake, [foo, bar, baz]}, result=100}])},
             {"mixed test representations", ?_assertEqual(
                 p([Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]),
                 [
-                    #result{function=Fun, time=100},
-                    #result{function=FunWithArgs, time=100},
-                    #result{function={?MODULE, fake}, time=100},
-                    #result{function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                    #result{function=Fun, result=100},
+                    #result{function=FunWithArgs, result=100},
+                    #result{function={?MODULE, fake}, result=100},
+                    #result{function={?MODULE, fake, [foo, bar, baz]}, result=100}
                 ]
             )}
         ]
@@ -233,18 +260,18 @@ named_basic_test_() ->
         [
             {"anon fun", ?_assertEqual(
                 p({"anon fun", Fun}),
-                [#result{name="anon fun", function=Fun, time=100}]
+                [#result{name="anon fun", function=Fun, result=100}]
             )},
             {"anon fun with args", ?_assertEqual(
                 p({"anon fun with args", FunWithArgs}),
-                [#result{name="anon fun with args", function=FunWithArgs, time=100}]
+                [#result{name="anon fun with args", function=FunWithArgs, result=100}]
             )},
             {"mod/fun", ?_assertEqual(
                 p({"mod/fun", {?MODULE, fake}}),
-                [#result{name="mod/fun", function={?MODULE, fake}, time=100}])},
+                [#result{name="mod/fun", function={?MODULE, fake}, result=100}])},
             {"mod/fun with arg", ?_assertEqual(
                 p({"mod/fun with arg", {?MODULE, fake, [foo, bar, baz]}}),
-                [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, time=100}])},
+                [#result{name="mod/fun with arg", function={?MODULE, fake, [foo, bar, baz]}, result=100}])},
             {"mixed test representations", ?_assertEqual(
                 p([
                     {"anon fun", Fun},
@@ -253,10 +280,10 @@ named_basic_test_() ->
                     {"mod/fun with args", {?MODULE, fake, [foo, bar, baz]}}
                 ]),
                 [
-                    #result{name="anon fun", function=Fun, time=100},
-                    #result{name="anon fun with args", function=FunWithArgs, time=100},
-                    #result{name="mod/fun", function={?MODULE, fake}, time=100},
-                    #result{name="mod/fun with args", function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                    #result{name="anon fun", function=Fun, result=100},
+                    #result{name="anon fun with args", function=FunWithArgs, result=100},
+                    #result{name="mod/fun", function={?MODULE, fake}, result=100},
+                    #result{name="mod/fun with args", function={?MODULE, fake, [foo, bar, baz]}, result=100}
                 ]
             )}
         ]
@@ -274,22 +301,22 @@ sum_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"no sum", ?_assertEqual(p({sum, Fun}), [#result{time=100}])},
+            {"no sum", ?_assertEqual(p({sum, Fun}), [#result{result=100}])},
             {"named sum", ?_assertEqual(
                 p({"sum", {sum, [Fun, Fun, Fun]}}),
-                [#result{name="sum", time=300}]
+                [#result{name="sum", result=300}]
             )},
             {"named sum", ?_assertEqual(
                 p({"sum", sum, [Fun, Fun, Fun]}),
-                [#result{name="sum", time=300}]
+                [#result{name="sum", result=300}]
             )},
             {"sum", ?_assertEqual(
                 p({sum, [Fun, Fun, Fun]}),
-                [#result{time=300}]
+                [#result{result=300}]
             )},
             {"sum of sums", ?_assertEqual(
                 p({sum, [{sum, [Fun, Fun, Fun]}, {sum, [Fun, Fun, {sum, [Fun]}]}]}),
-                [#result{time=600}]
+                [#result{result=600}]
             )}
         ]
     }].
@@ -312,25 +339,25 @@ average_test_() ->
             ok = meck:unload(timer)
         end,
         [
-            {"no average", ?_assertEqual(p({average, Fun}), [#result{time=100}])},
+            {"no average", ?_assertEqual(p({average, Fun}), [#result{result=100}])},
             {"average", ?_assertEqual(
                 p({average, [Fun, Fun, Fun]}),
-                [#result{time=300}]
+                [#result{result=300}]
             )},
             {"named average", ?_assertEqual(
                 p({"average", {average, [Fun, Fun, Fun]}}),
-                [#result{name="average", time=300}]
+                [#result{name="average", result=300}]
             )},
             {"inline named average", ?_assertEqual(
                 p({"average", average, [Fun, Fun, Fun]}),
-                [#result{name="average", time=300}]
+                [#result{name="average", result=300}]
             )},
             {"average of averages", ?_assertEqual(
                 p({average, [
                     {average, [Fun, Fun, Fun]},
                     {average, [Fun, Fun, {average, [Fun]}]}
                 ]}),
-                [#result{time=450}]
+                [#result{result=450}]
             )}
         ]
     }].
@@ -351,15 +378,15 @@ repeat_test_() ->
         [
             {"repeat", ?_assertEqual(
                 p({repeat, 3, Fun}),
-                lists:flatten(lists:duplicate(3, [#result{function=Fun, time=100}]))
+                lists:flatten(lists:duplicate(3, [#result{function=Fun, result=100}]))
             )},
             {"compound repeat", ?_assertEqual(
                 p({repeat, 3, [Fun, FunWithArgs, {?MODULE, fake}, {?MODULE, fake, [foo, bar, baz]}]}),
                 lists:flatten(lists:duplicate(3, [
-                    #result{function=Fun, time=100},
-                    #result{function=FunWithArgs, time=100},
-                    #result{function={?MODULE, fake}, time=100},
-                    #result{function={?MODULE, fake, [foo, bar, baz]}, time=100}
+                    #result{function=Fun, result=100},
+                    #result{function=FunWithArgs, result=100},
+                    #result{function={?MODULE, fake}, result=100},
+                    #result{function={?MODULE, fake, [foo, bar, baz]}, result=100}
                 ]))
             )}
         ]
