@@ -158,28 +158,24 @@ run_normal(Test, Config) -> run_test(Test, Config).
 run_test(Test, Config) ->
     Parent = self(),
     _ShimPid = spawn_opt(fun() -> shim_test(Parent, Test, Config) end, []),
-    rec_loop().
-
-
-rec_loop() ->
-    receive {test_result, Result} -> Result; _ -> rec_loop() end.
-
-
-shim_test(Parent, Test, _Config) ->
-    {TestPid, MonitorRef} = spawn_opt(fun() -> test_wrapper() end, [monitor]),
-    %% set shim as target for io from test
-    group_leader(TestPid, self()),
-    TestPid ! {test, self(), Test},
-    receive
-        {'DOWN', MonitorRef, process, TestPid, Exit} ->
-            Parent ! {test_result, Test#result{result = Exit}};
-        {test_result, Result} ->
-            Parent ! {test_result, Result}
+    case rec_loop() of
+        {test_result, Result} -> Result;
+        {error, Exit} -> Test#result{result = Exit}
     end.
 
 
+shim_test(Parent, Test, _Config) ->
+    {TestPid, _} = spawn_opt(fun() -> test_wrapper() end, [monitor]),
+    %% set shim as target for io from test
+    group_leader(self(), TestPid),
+    TestPid ! {test, self(), Test},
+    Parent ! rec_loop().
+
+
 test_wrapper() ->
-    receive {test, From, Test} -> From ! {test_result, time(Test)}  end.
+    receive {test, From, Test} ->
+        From ! {test_result, time(Test)}
+    end.
 
 
 time(Result = #result{function={Mod, Fun, Args}}) ->
@@ -194,6 +190,34 @@ time(Result = #result{function={Fun, Args}}) ->
 time(Result = #result{function=Fun}) ->
     {T, _} = timer:tc(Fun),
     [Result#result{result=T}].
+
+
+rec_loop() ->
+    receive
+        {test_result, Result} ->
+            {test_result, Result};
+        {'DOWN', _, process, _, Exit} ->
+            {error, Exit};
+        {io_request, From, Reply, Request} ->
+            io_request(From, Reply, Request),
+            rec_loop()
+    end.
+
+
+io_request(From, Replier, Request) -> From ! {io_reply, Replier, io_reply(Request)}.
+
+
+io_reply({put_chars, _}) -> ok;
+io_reply({put_chars, _, _}) -> ok;
+io_reply({put_chars, _, _, _}) -> ok;
+io_reply({put_chars, _, _, _, _}) -> ok;
+io_reply({set_opts, _}) -> ok;
+io_reply({requests, _}) -> ok;
+io_reply({get_chars, _, _, _}) -> eof;
+io_reply({get_chars, _, _}) -> eof;
+io_reply({get_line, _}) -> eof;
+io_reply({get_line, _, _}) -> eof;
+io_reply({get_until, _, _, _, _}) -> eof.
 
 
 -ifdef(TEST).
@@ -395,5 +419,6 @@ repeat_test_() ->
             )}
         ]
     }].
+
 
 -endif.
