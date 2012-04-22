@@ -81,8 +81,12 @@ report([Result|Rest], Opts, Acc) ->
         {name, Result#result.name},
         {function, Result#result.function},
         {line, Result#result.line},
-        {time, Result#result.result}
+        time_or_error(Result)
     ] | Acc]).
+
+
+time_or_error(#result{result=Time}) when is_integer(Time) -> {time, Time};
+time_or_error(#result{result=Exit}) -> {error, Exit}.
 
 
 profile([], _Config, Acc) ->
@@ -174,7 +178,7 @@ shim_test(Parent, Test, _Config) ->
 
 test_wrapper() ->
     receive {test, From, Test} ->
-        From ! {test_result, time(Test)}
+        From ! {test_result, try time(Test) catch Type:Error -> [Test#result{result={Type,Error}}] end}
     end.
 
 
@@ -419,6 +423,13 @@ repeat_test_() ->
             )}
         ]
     }].
+
+
+exit_test_() ->
+    Fun = fun() -> erlang:exit(badarg) end,
+    [
+        {"exit", ?_assertEqual(p(Fun), [#result{function=Fun, result={exit, badarg}}])}
+    ].
 
 
 -endif.
