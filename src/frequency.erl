@@ -22,7 +22,7 @@
 
 -module(frequency).
 
--export([profile/1, profile/2, report/1, report/2]).
+-export([profile/1, profile/2]).
 -export([run_normal/2]).
 
 
@@ -59,13 +59,17 @@
     | {list(), average, test()}.
 
 
--spec profile(Fs::test()) -> ok | {error, term()}.
--spec profile(Fs::test(), Opts::[]) -> ok | {error, term()}.
+-type result() :: [#result{}].
+
+
+-spec profile(Fs::test()) -> result().
+-spec profile(Fs::test(), Opts::[]) -> result().
 
 profile(Fs) -> profile(Fs, []).
 
 profile(Fs, Opts) ->
-    profile(Fs, #config{}, []).
+    Results = profile(Fs, #config{}, []),
+    report(Results, Opts).
 
 
 report(Results, Opts) ->
