@@ -35,7 +35,6 @@
 -record(result, {
     name,
     function,
-    line,
     result
 }).
 
@@ -80,7 +79,6 @@ report([Result|Rest], Opts, Acc) ->
     report(Rest, Opts, [[
         {name, Result#result.name},
         {function, Result#result.function},
-        {line, Result#result.line},
         time_or_error(Result)
     ] | Acc]).
 
