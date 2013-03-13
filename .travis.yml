@@ -2,7 +2,9 @@ language: erlang
 script: rebar --config=rebar.dev.config get-deps && rebar --config=rebar.dev.config compile && rebar --config=rebar.dev.config skip_deps=true eunit
 otp_release:
   - R16B
-  - R15B03-1
   - R15B02
   - R15B01
   - R15B
+  - R14B04
+  - R14B03
+  - R14B02
