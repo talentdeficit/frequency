@@ -426,7 +426,7 @@ repeat_test_() ->
 exit_test_() ->
     Fun = fun() -> erlang:exit(badarg) end,
     [
-        {"exit", ?_assertEqual(p(Fun), [#result{function=Fun, result={exit, badarg}}])}
+        {"exit", ?_assertEqual([#result{function=Fun, result={exit, badarg}}], p(Fun))}
     ].
 
 
